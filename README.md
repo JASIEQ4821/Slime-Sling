@@ -1,2 +1,351 @@
-# Slime-Sling
-Slime Sling - Free browser platformer game
+<!-- Full Game Code with Language Selection, Better Platform Spacing, Background Music, and Return Button -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Slime Adventure Infinite</title>
+  <style>
+    html, body {
+      margin: 0;
+      overflow: hidden;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: #222;
+    }
+    canvas {
+      display: block;
+      background: linear-gradient(#87ceeb, #f0f8ff);
+    }
+    #ui {
+      position: absolute;
+      top: 10px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 10;
+      text-align: center;
+      background: rgba(0, 0, 0, 0.6);
+      padding: 10px 20px;
+      border-radius: 10px;
+      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5);
+      display: none;
+    }
+    #ui span {
+      color: #fff;
+      font-weight: bold;
+      font-size: 24px;
+    }
+    #ui span.label {
+      color: #ffcc00;
+      font-size: 20px;
+      display: block;
+      margin-top: 5px;
+    }
+    #startScreen {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(to bottom, #222, #444);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      color: white;
+      z-index: 20;
+    }
+    #startScreen h1 {
+      font-size: 48px;
+      margin-bottom: 20px;
+    }
+    #startScreen select, #startScreen button, #backToLobbyBtn {
+      font-size: 20px;
+      padding: 12px 24px;
+      margin: 10px;
+      background: #ffcc00;
+      color: #000;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+    }
+    #startScreen button:hover, #backToLobbyBtn:hover {
+      background: #ffaa00;
+    }
+    #backToLobbyBtn {
+      position: absolute;
+      bottom: 20px;
+      left: 20px;
+      z-index: 15;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <audio id="bgm" loop autoplay>
+    <source src="https://cdn.pixabay.com/download/audio/2022/10/19/audio_b7bfbadd55.mp3?filename=arcade-music-loop-145047.mp3" type="audio/mpeg">
+  </audio>
+
+  <div id="startScreen">
+    <h1>Slime Adventure</h1>
+    <select id="language">
+      <option value="en">English</option>
+      <option value="pl">Polski</option>
+      <option value="de">Deutsch</option>
+      <option value="es">Español</option>
+      <option value="fr">Français</option>
+      <option value="it">Italiano</option>
+      <option value="ua">Українська</option>
+    </select>
+    <button onclick="startGame()">Start Game</button>
+  </div>
+  <div id="ui">
+    <span class="label" id="label-distance">Distance</span><span id="distance">0</span><br>
+    <span class="label" id="label-record">Record</span><span id="record">0</span>
+  </div>
+  <button id="backToLobbyBtn" onclick="goToLobby()">🏠 Lobby</button>
+  <canvas id="gameCanvas"></canvas>
+
+  <script>
+    const canvas = document.getElementById("gameCanvas");
+    const ctx = canvas.getContext("2d");
+    const ui = document.getElementById("ui");
+    const backToLobbyBtn = document.getElementById("backToLobbyBtn");
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+
+    let started = false;
+    let record = 0;
+    const distanceEl = document.getElementById("distance");
+    const recordEl = document.getElementById("record");
+    const lang = {
+      en: { distance: "Distance", record: "Record" },
+      pl: { distance: "Dystans", record: "Rekord" },
+      de: { distance: "Entfernung", record: "Rekord" },
+      es: { distance: "Distancia", record: "Récord" },
+      fr: { distance: "Distance", record: "Record" },
+      it: { distance: "Distanza", record: "Record" },
+      ua: { distance: "Відстань", record: "Рекорд" }
+    };
+
+    const slime = {
+      x: 100,
+      y: 0,
+      radius: 30,
+      color: "#7CFC00",
+      vx: 0,
+      vy: 0,
+      grounded: false
+    };
+
+    let aiming = false;
+    let mousePos = { x: 0, y: 0 };
+    let cameraX = 0;
+
+    const platforms = [];
+    const portals = [];
+
+    function initGame() {
+      platforms.length = 0;
+      portals.length = 0;
+      platforms.push({ x: 50, y: 400, w: 200, h: 20 });
+      let lastX = 50;
+      for (let i = 1; i < 500; i++) {
+        const minGap = 150;
+        const maxGap = 300;
+        const newX = lastX + minGap + Math.random() * (maxGap - minGap);
+        const height = Math.random() * 200 + 200;
+        platforms.push({ x: newX, y: height, w: 80, h: 20 });
+        lastX = newX;
+
+        if (Math.random() < 0.05 && i < 498) {
+          portals.push({ x: newX, y: height - 60, targetIndex: i + 2 });
+        }
+      }
+      resetGame();
+    }
+
+    function startGame() {
+      document.getElementById("startScreen").style.display = "none";
+      ui.style.display = "block";
+      backToLobbyBtn.style.display = "block";
+      started = true;
+      const selectedLang = document.getElementById("language").value;
+      document.getElementById("label-distance").innerText = lang[selectedLang].distance;
+      document.getElementById("label-record").innerText = lang[selectedLang].record;
+      initGame();
+    }
+
+    function goToLobby() {
+      started = false;
+      document.getElementById("startScreen").style.display = "flex";
+      ui.style.display = "none";
+      backToLobbyBtn.style.display = "none";
+    }
+
+    function drawSlime() {
+      ctx.beginPath();
+      ctx.arc(slime.x - cameraX, slime.y, slime.radius, 0, Math.PI * 2);
+      ctx.fillStyle = slime.color;
+      ctx.fill();
+      ctx.strokeStyle = "#444";
+      ctx.lineWidth = 3;
+      ctx.stroke();
+    }
+
+    function drawPlatforms() {
+      for (const p of platforms) {
+        ctx.fillStyle = "#8B4513";
+        ctx.fillRect(p.x - cameraX, p.y, p.w, p.h);
+        ctx.strokeStyle = "#000";
+        ctx.strokeRect(p.x - cameraX, p.y, p.w, p.h);
+      }
+    }
+
+    function drawAimLine() {
+      if (!aiming || !slime.grounded) return;
+      const dx = mousePos.x + cameraX - slime.x;
+      const dy = mousePos.y - slime.y;
+      const mag = Math.sqrt(dx * dx + dy * dy);
+      const maxDistance = 200;
+      const distance = Math.min(mag, maxDistance);
+      const dirX = dx / mag;
+      const dirY = dy / mag;
+      const endX = slime.x + dirX * distance;
+      const endY = slime.y + dirY * distance;
+      ctx.beginPath();
+      ctx.moveTo(slime.x - cameraX, slime.y);
+      ctx.lineTo(endX - cameraX, endY);
+      ctx.strokeStyle = "white";
+      ctx.lineWidth = 2;
+      ctx.setLineDash([5, 5]);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+
+    function drawLava() {
+      const lavaHeight = 40;
+      const y = canvas.height - lavaHeight;
+      const grd = ctx.createLinearGradient(0, y, 0, y + lavaHeight);
+      grd.addColorStop(0, "#ff4500");
+      grd.addColorStop(1, "#8b0000");
+      ctx.fillStyle = grd;
+      ctx.fillRect(0, y, canvas.width, lavaHeight);
+    }
+
+    function drawPortals() {
+      ctx.fillStyle = "#00f";
+      for (const portal of portals) {
+        ctx.beginPath();
+        ctx.arc(portal.x - cameraX + 10, portal.y + 10, 10, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    function updatePhysics() {
+      slime.vy += 0.5;
+      slime.x += slime.vx;
+      slime.y += slime.vy;
+
+      let landed = false;
+      for (const p of platforms) {
+        if (
+          slime.x + slime.radius > p.x &&
+          slime.x - slime.radius < p.x + p.w &&
+          slime.y + slime.radius > p.y &&
+          slime.y + slime.radius < p.y + p.h &&
+          slime.vy > 0
+        ) {
+          slime.y = p.y - slime.radius;
+          slime.vy = 0;
+          slime.vx *= 0.8;
+          landed = true;
+        }
+      }
+      slime.grounded = landed;
+
+      for (const portal of portals) {
+        if (
+          slime.x > portal.x &&
+          slime.x < portal.x + 20 &&
+          slime.y > portal.y &&
+          slime.y < portal.y + 20
+        ) {
+          const target = platforms[portal.targetIndex];
+          if (target) {
+            slime.x = target.x + target.w / 2;
+            slime.y = target.y - slime.radius;
+            slime.vx = 0;
+            slime.vy = 0;
+          }
+        }
+      }
+
+      if (slime.y > canvas.height - 40) {
+        resetGame();
+      }
+
+      cameraX = slime.x - canvas.width / 3;
+      if (cameraX < 0) cameraX = 0;
+
+      const currentDist = Math.floor(slime.x);
+      distanceEl.textContent = currentDist;
+      if (currentDist > record) {
+        record = currentDist;
+        recordEl.textContent = record;
+      }
+    }
+
+    function resetGame() {
+      slime.x = 100;
+      slime.y = 300;
+      slime.vx = 0;
+      slime.vy = 0;
+      slime.grounded = true;
+      cameraX = 0;
+    }
+
+    function draw() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      drawPlatforms();
+      drawPortals();
+      drawLava();
+      drawSlime();
+      drawAimLine();
+    }
+
+    function gameLoop() {
+      if (started) {
+        updatePhysics();
+        draw();
+      }
+      requestAnimationFrame(gameLoop);
+    }
+
+    canvas.addEventListener("mousemove", (e) => {
+      mousePos.x = e.clientX;
+      mousePos.y = e.clientY;
+    });
+
+    canvas.addEventListener("mousedown", (e) => {
+      if (!slime.grounded) return;
+      aiming = true;
+      mousePos.x = e.clientX;
+      mousePos.y = e.clientY;
+    });
+
+    canvas.addEventListener("mouseup", (e) => {
+      if (!aiming || !slime.grounded) return;
+      aiming = false;
+      const dx = e.clientX + cameraX - slime.x;
+      const dy = e.clientY - slime.y;
+      const mag = Math.sqrt(dx * dx + dy * dy);
+      const maxDistance = 200;
+      const distance = Math.min(mag, maxDistance);
+      const clampedDx = (dx / mag) * distance;
+      const clampedDy = (dy / mag) * distance;
+      slime.vx = clampedDx / 10;
+      slime.vy = clampedDy / 10;
+      slime.grounded = false;
+    });
+
+    gameLoop();
+  </script>
+</body>
+</html>
